@@ -83,14 +83,35 @@ class MainActivity : ComponentActivity() {
 fun AppNavigation() {
     val context = LocalContext.current
     var setupDone by remember { mutableStateOf(MealPreferences.isSetupDone(context)) }
+    var showVerification by remember { mutableStateOf(false) }
 
-    if (!setupDone) {
-        SetupScreen(onSetupComplete = { setupDone = true })
-    } else {
-        HomeScreen(onResetSetup = {
-            MealPreferences.clearSetup(context)
-            setupDone = false
-        })
+    val sampleIngredients = remember {
+        mutableStateListOf(
+            "eggs", "spinach", "milk", "leftover rice",
+            "cheddar cheese", "butter", "garlic", "onion"
+        )
+    }
+
+    when {
+        !setupDone -> SetupScreen(onSetupComplete = { setupDone = true })
+
+        showVerification -> IngredientVerificationScreen(
+            imageUrl = "",
+            ingredients = sampleIngredients,
+            onConfirm = { confirmedIngredients ->
+                android.util.Log.d("INGREDIENTS", "Confirmed: $confirmedIngredients")
+                showVerification = false
+            },
+            onBack = { showVerification = false }
+        )
+
+        else -> HomeScreen(
+            onResetSetup = {
+                MealPreferences.clearSetup(context)
+                setupDone = false
+            },
+            onTestVerification = { showVerification = true }
+        )
     }
 }
 
@@ -106,7 +127,6 @@ fun SetupScreen(onSetupComplete: () -> Unit) {
     val dinnerState = rememberTimePickerState(18, 0)
 
     var currentStep by remember { mutableStateOf(0) }
-    // 0 = breakfast, 1 = lunch, 2 = dinner
 
     val stepTitle = listOf("Breakfast Time", "Lunch Time", "Dinner Time")
     val stepEmoji = listOf("🌅", "☀️", "🌙")
@@ -164,7 +184,6 @@ fun SetupScreen(onSetupComplete: () -> Unit) {
                     if (currentStep < 2) {
                         currentStep++
                     } else {
-                        // Save all 3 times
                         val breakfast = formatTime(breakfastState.hour, breakfastState.minute)
                         val lunch = formatTime(lunchState.hour, lunchState.minute)
                         val dinner = formatTime(dinnerState.hour, dinnerState.minute)
@@ -183,13 +202,12 @@ fun SetupScreen(onSetupComplete: () -> Unit) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeScreen(onResetSetup: () -> Unit) {
+fun HomeScreen(
+    onResetSetup: () -> Unit,
+    onTestVerification: () -> Unit
+) {
     val context = LocalContext.current
     val (breakfast, lunch, dinner) = MealPreferences.getMealTimes(context)
-
-    var showEditDialog by remember { mutableStateOf(false) }
-    var editingMeal by remember { mutableStateOf("") }
-    var editingTime by remember { mutableStateOf("") }
 
     Scaffold(
         topBar = {
@@ -222,6 +240,13 @@ fun HomeScreen(onResetSetup: () -> Unit) {
 
             Spacer(modifier = Modifier.weight(1f))
 
+            Button(
+                onClick = onTestVerification,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Preview Verification Screen")
+            }
+
             OutlinedButton(
                 onClick = onResetSetup,
                 modifier = Modifier.fillMaxWidth()
@@ -231,6 +256,8 @@ fun HomeScreen(onResetSetup: () -> Unit) {
         }
     }
 }
+
+// --- MEAL TIME CARD ---
 
 @Composable
 fun MealTimeCard(emoji: String, meal: String, time: String) {
