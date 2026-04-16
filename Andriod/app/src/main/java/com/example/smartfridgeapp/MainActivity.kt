@@ -84,21 +84,17 @@ fun AppNavigation() {
     val context = LocalContext.current
     var setupDone by remember { mutableStateOf(MealPreferences.isSetupDone(context)) }
     var showVerification by remember { mutableStateOf(false) }
-
-    val sampleIngredients = remember {
-        mutableStateListOf(
-            "eggs", "spinach", "milk", "leftover rice",
-            "cheddar cheese", "butter", "garlic", "onion"
-        )
-    }
+    var currentIngredients by remember { mutableStateOf(listOf<String>()) }
+    var currentImageUrl by remember { mutableStateOf("") }
 
     when {
         !setupDone -> SetupScreen(onSetupComplete = { setupDone = true })
 
         showVerification -> IngredientVerificationScreen(
-            imageUrl = "",
-            ingredients = sampleIngredients,
+            imageUrl = currentImageUrl,
+            ingredients = currentIngredients,
             onConfirm = { confirmedIngredients ->
+                // These confirmed ingredients will go to Phi-3 for recipe generation
                 android.util.Log.d("INGREDIENTS", "Confirmed: $confirmedIngredients")
                 showVerification = false
             },
@@ -110,7 +106,15 @@ fun AppNavigation() {
                 MealPreferences.clearSetup(context)
                 setupDone = false
             },
-            onTestVerification = { showVerification = true }
+            onTestVerification = {
+                // Sample data — will be replaced with real Pi data later
+                currentImageUrl = ""
+                currentIngredients = listOf(
+                    "eggs", "spinach", "milk", "leftover rice",
+                    "cheddar cheese", "butter", "garlic", "onion"
+                )
+                showVerification = true
+            }
         )
     }
 }
@@ -240,11 +244,12 @@ fun HomeScreen(
 
             Spacer(modifier = Modifier.weight(1f))
 
+            // Test button — remove later when Pi is sending real data
             Button(
                 onClick = onTestVerification,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("Preview Verification Screen")
+                Text("🧪 Preview Ingredient Verification")
             }
 
             OutlinedButton(
@@ -256,8 +261,6 @@ fun HomeScreen(
         }
     }
 }
-
-// --- MEAL TIME CARD ---
 
 @Composable
 fun MealTimeCard(emoji: String, meal: String, time: String) {
