@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.example.smartfridgeapp.ui.theme.SmartFridgeAppTheme
 import com.google.firebase.messaging.FirebaseMessaging
+import com.google.firebase.firestore.FirebaseFirestore
 
 class MainActivity : ComponentActivity() {
 
@@ -42,6 +43,18 @@ class MainActivity : ComponentActivity() {
         FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
             if (task.isSuccessful) {
                 android.util.Log.d("FCM_TOKEN", "Token: ${task.result}")
+
+                // Save to Firestore so Pi scheduler can read it
+                FirebaseFirestore.getInstance()
+                    .collection("fcm_tokens")
+                    .document("user_1")
+                    .set(mapOf(
+                        "token"      to task.result,
+                        "updated_at" to com.google.firebase.Timestamp.now()
+                    ))
+                    .addOnSuccessListener {
+                        android.util.Log.d("FCM_TOKEN", "✅ Token saved to Firestore")
+                    }
             }
         }
 
