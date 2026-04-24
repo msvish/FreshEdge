@@ -13,19 +13,16 @@ import com.google.firebase.messaging.RemoteMessage
 
 class MyFirebaseMessagingService : FirebaseMessagingService() {
 
-    /**
-     * Called when a message is received from Firebase (Pi/Laptop pipeline).
-     */
     override fun onMessageReceived(remoteMessage: RemoteMessage) {
         super.onMessageReceived(remoteMessage)
 
-        val title = remoteMessage.notification?.title ?: "FreshEdge Suggestion 🥗"
-        val body = remoteMessage.notification?.body ?: "Open the app to see your recipe!"
+        val title  = remoteMessage.notification?.title ?: "FreshEdge Suggestion 🥗"
+        val body   = remoteMessage.notification?.body  ?: "Open the app to see your recipe!"
+        val screen = remoteMessage.data["screen"]      ?: "current"  // ← read from Pi payload
 
         val notificationManager =
             getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
-        // ── 1. Ensure Channel Exists (Required for Android 8.0+) ──
         val channel = NotificationChannel(
             "MEAL_ALERTS",
             "Meal Suggestions",
@@ -35,13 +32,12 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
         }
         notificationManager.createNotificationChannel(channel)
 
-        // ── 2. Create the Intent to open MainActivity ──
+        // ── Deep link: pass screen so MainActivity opens the right tab ──
         val intent = Intent(this, MainActivity::class.java).apply {
-            // Clears the activity stack so the app opens fresh to the current recipe
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra("screen", screen)   // ← "current" → bell screen
         }
 
-        // ── 3. Wrap in PendingIntent for interactivity ──
         val pendingIntent = PendingIntent.getActivity(
             this,
             0,
@@ -49,43 +45,30 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        // ── 4. Build and Show the Notification ──
         val notification = NotificationCompat.Builder(this, "MEAL_ALERTS")
             .setContentTitle(title)
             .setContentText(body)
             .setSmallIcon(android.R.drawable.ic_dialog_info)
-            .setContentIntent(pendingIntent) // <── This makes it clickable
-            .setAutoCancel(true)             // <── Removes notification after tap
+            .setContentIntent(pendingIntent)
+            .setAutoCancel(true)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .build()
 
-        // Use a unique ID (timestamp) so multiple suggestions don't overwrite each other
         notificationManager.notify(System.currentTimeMillis().toInt(), notification)
     }
 
-    /**
-     * Called when a new token is generated (e.g., first run or app reinstall).
-     * Syncs to Firestore so your Raspberry Pi knows where to send alerts.
-     */
     override fun onNewToken(token: String) {
         super.onNewToken(token)
         Log.d("FCM_TOKEN", "Refreshed token: $token")
 
         val db = FirebaseFirestore.getInstance()
-        val data = hashMapOf(
-            "token"      to token,
-            "updated_at" to com.google.firebase.Timestamp.now()
-        )
-
-        // Maps to the structure your Pi script expects [cite: 16, 66]
         db.collection("fcm_tokens")
             .document("user_1")
-            .set(data)
-            .addOnSuccessListener {
-                Log.d("FCM_TOKEN", "✅ Token synced to Firestore")
-            }
-            .addOnFailureListener { e ->
-                Log.e("FCM_TOKEN", "❌ Token sync failed: ${e.message}")
-            }
+            .set(hashMapOf(
+                "token"      to token,
+                "updated_at" to com.google.firebase.Timestamp.now()
+            ))
+            .addOnSuccessListener { Log.d("FCM_TOKEN", "✅ Token synced to Firestore") }
+            .addOnFailureListener { e -> Log.e("FCM_TOKEN", "❌ Token sync failed: ${e.message}") }
     }
 }

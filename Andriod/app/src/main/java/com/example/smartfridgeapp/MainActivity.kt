@@ -11,12 +11,9 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material3.Icon
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -30,7 +27,6 @@ import androidx.core.content.ContextCompat
 import com.example.smartfridgeapp.ui.theme.SmartFridgeAppTheme
 import com.google.firebase.messaging.FirebaseMessaging
 import com.google.firebase.firestore.FirebaseFirestore
-import com.google.firebase.firestore.Query
 
 class MainActivity : ComponentActivity() {
 
@@ -41,6 +37,8 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        // Check if launched from notification tap
+        val openScreen = intent?.getStringExtra("screen") ?: "home"
         createNotificationChannel()
         askNotificationPermission()
 
@@ -58,7 +56,7 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             SmartFridgeAppTheme {
-                AppNavigation()
+                AppNavigation(startScreen = openScreen)
             }
         }
     }
@@ -80,18 +78,14 @@ class MainActivity : ComponentActivity() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AppNavigation() {
+fun AppNavigation(startScreen: String = "home") {
     val context = LocalContext.current
     var setupDone by remember { mutableStateOf(MealPreferences.isSetupDone(context)) }
-    var showVerification by remember { mutableStateOf(false) }
-    var currentScreen by remember { mutableStateOf("home") } // "home", "current", "history"
-
-    var currentIngredients by remember { mutableStateOf(listOf<String>()) }
-    var currentImageUrl by remember { mutableStateOf("") }
+    var currentScreen by remember { mutableStateOf(startScreen) } // "home", "current", "history"
 
     Scaffold(
         topBar = {
-            if (setupDone && !showVerification) {
+            if (setupDone) {
                 TopAppBar(
                     title = { Text("FreshEdge 🥗") },
                     actions = {
@@ -99,7 +93,7 @@ fun AppNavigation() {
                             Icon(Icons.Default.Notifications, contentDescription = "Current Recipe")
                         }
                         IconButton(onClick = { currentScreen = "history" }) {
-                            Icon(Icons.Default.Edit, contentDescription = "Meal History")
+                            Icon(Icons.Default.History, contentDescription = "Meal History")
                         }
                     }
                 )
@@ -110,13 +104,6 @@ fun AppNavigation() {
             when {
                 !setupDone -> SetupScreen(onSetupComplete = { setupDone = true })
 
-                showVerification -> IngredientVerificationScreen(
-                    imageUrl = currentImageUrl,
-                    ingredients = currentIngredients,
-                    onConfirm = { showVerification = false },
-                    onBack = { showVerification = false }
-                )
-
                 currentScreen == "current" -> CurrentRecipeScreen(onBack = { currentScreen = "home" })
 
                 currentScreen == "history" -> HistoryScreen(onBack = { currentScreen = "home" })
@@ -125,10 +112,6 @@ fun AppNavigation() {
                     onResetSetup = {
                         MealPreferences.clearSetup(context)
                         setupDone = false
-                    },
-                    onTestVerification = {
-                        currentIngredients = listOf("eggs", "spinach", "milk")
-                        showVerification = true
                     }
                 )
             }
@@ -136,8 +119,8 @@ fun AppNavigation() {
     }
 }
 
-
-// --- YOUR EXISTING SCREENS (SETUP, HOME, ETC) ---
+// --- SETUP SCREEN ---
+// --- SETUP SCREEN ---
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SetupScreen(onSetupComplete: () -> Unit) {
@@ -169,9 +152,10 @@ fun SetupScreen(onSetupComplete: () -> Unit) {
     }
 }
 
+// --- HOME SCREEN ---
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeScreen(onResetSetup: () -> Unit, onTestVerification: () -> Unit) {
+fun HomeScreen(onResetSetup: () -> Unit) {
     val context = LocalContext.current
     val (breakfast, lunch, dinner) = MealPreferences.getMealTimes(context)
 
@@ -182,7 +166,6 @@ fun HomeScreen(onResetSetup: () -> Unit, onTestVerification: () -> Unit) {
         MealTimeCard(emoji = "☀️", meal = "Lunch", time = lunch)
         MealTimeCard(emoji = "🌙", meal = "Dinner", time = dinner)
         Spacer(modifier = Modifier.weight(1f))
-        Button(onClick = onTestVerification, modifier = Modifier.fillMaxWidth()) { Text("🧪 Preview Ingredient Verification") }
         OutlinedButton(onClick = onResetSetup, modifier = Modifier.fillMaxWidth()) { Text("Edit Meal Times") }
     }
 }
@@ -196,10 +179,11 @@ fun MealTimeCard(emoji: String, meal: String, time: String) {
                 Spacer(modifier = Modifier.width(12.dp))
                 Column {
                     Text(text = meal, fontWeight = FontWeight.Medium)
-                    Text(text = time, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                 }
             }
-            Icon(imageVector = Icons.Default.Edit, contentDescription = "Edit")
+            Column {
+                Text(text = time, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+            }
         }
     }
 }
