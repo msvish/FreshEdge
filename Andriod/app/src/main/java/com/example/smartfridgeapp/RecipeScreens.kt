@@ -137,7 +137,7 @@ fun CurrentRecipeScreen(onBack: () -> Unit) {
                     Divider(color = MaterialTheme.colorScheme.outlineVariant)
                     Spacer(modifier = Modifier.height(12.dp))
                     Text(
-                        text = recipe!!["suggestion"]?.toString() ?: "",
+                        text = recipe!!["instructions"]?.toString() ?: "",
                         fontSize = 15.sp,
                         lineHeight = 22.sp,
                         color = MaterialTheme.colorScheme.onSurface
@@ -453,7 +453,7 @@ fun HistoryScreen(onBack: () -> Unit) {
                                             color = MaterialTheme.colorScheme.outlineVariant
                                         )
                                         Text(
-                                            text = meal["suggestion"]?.toString() ?: "",
+                                            text = meal["instructions"]?.toString() ?: "",
                                             fontSize = 14.sp,
                                             lineHeight = 21.sp,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -542,7 +542,7 @@ fun MealSlotTimeline(slot: String, meals: List<Map<String, Any>>) {
                             fontSize = 15.sp,
                             fontWeight = FontWeight.SemiBold
                         )
-                        val suggestion = meal["suggestion"]?.toString()
+                        val suggestion = meal["instructions"]?.toString()
                         if (!suggestion.isNullOrEmpty()) {
                             Text(
                                 text = suggestion,
