@@ -32,34 +32,59 @@ fun CurrentRecipeScreen(onBack: () -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
     var recipe by remember { mutableStateOf<Map<String, Any>?>(null) }
     var loading by remember { mutableStateOf(true) }
+    var selectedMeal by remember { mutableStateOf<MealWindow?>(null) }
+
     val db = FirebaseFirestore.getInstance()
 
-    // Figure out which meal slot we're in right now
+    // (Optional) keep this if you still need time-based logic elsewhere
     val (breakfast, lunch, dinner) = MealPreferences.getMealTimes(context)
     val currentMeal = getCurrentMeal(breakfast, lunch, dinner)
 
     LaunchedEffect(Unit) {
-        val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+        val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+            .format(Date())
 
-        // Check the current slot based on the time
-        val slotName = when (currentMeal.name) {
-            "Breakfast" -> "Breakfast"
-            "Lunch" -> "Lunch"
-            else -> "Dinner"
+        val slots = listOf("Dinner", "Lunch", "Breakfast")
+
+        fun checkSlot(index: Int) {
+            if (index >= slots.size) {
+                loading = false
+                return
+            }
+
+            val slot = slots[index]
+
+            db.collection("recipe_history")
+                .document("user_1")
+                .collection("days")
+                .document(today)
+                .collection(slot)
+                .limit(1)
+                .get()
+                .addOnSuccessListener { snapshot ->
+                    if (!snapshot.isEmpty) {
+                        recipe = snapshot.documents[0].data
+
+                        selectedMeal = when (slot) {
+                            "Breakfast" -> MealWindow("Breakfast", "🌅", "Morning meal")
+                            "Lunch"     -> MealWindow("Lunch",     "☀️", "Afternoon meal")
+                            "Dinner"    -> MealWindow("Dinner",    "🌙", "Evening meal")
+                            else        -> null
+                        }
+
+                        android.util.Log.d("FIRESTORE_DEBUG", "Found in $slot")
+                        loading = false
+                    } else {
+                        checkSlot(index + 1)
+                    }
+                }
+                .addOnFailureListener {
+                    android.util.Log.d("FIRESTORE_DEBUG", "Error in $slot", it)
+                    checkSlot(index + 1)
+                }
         }
 
-        db.collection("recipe_history")
-            .document("user_1")
-            .collection("days")
-            .document(today)
-            .collection(slotName)
-            .limit(1)
-            .get()
-            .addOnSuccessListener {
-                recipe = if (!it.isEmpty) it.documents[0].data else null
-                loading = false
-            }
-            .addOnFailureListener { loading = false }
+        checkSlot(0)
     }
 
     Column(
@@ -67,7 +92,6 @@ fun CurrentRecipeScreen(onBack: () -> Unit) {
             .fillMaxSize()
             .padding(24.dp)
     ) {
-        // Back button
         IconButton(onClick = onBack, modifier = Modifier.padding(bottom = 8.dp)) {
             Icon(Icons.Default.ArrowBack, contentDescription = "Back")
         }
@@ -80,7 +104,10 @@ fun CurrentRecipeScreen(onBack: () -> Unit) {
         }
 
         if (recipe != null) {
-            // Meal timing banner
+
+            val mealToShow = selectedMeal ?: currentMeal  // fallback safety
+
+            // ✅ Meal banner (FIXED)
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -89,18 +116,18 @@ fun CurrentRecipeScreen(onBack: () -> Unit) {
             ) {
                 Column(modifier = Modifier.padding(20.dp)) {
                     Text(
-                        text = currentMeal.emoji,
+                        text = mealToShow?.emoji ?: "🍽️",
                         fontSize = 36.sp
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "It's time for ${currentMeal.name}",
+                        text = "Your latest meal: ${mealToShow?.name ?: ""}",
                         fontSize = 22.sp,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
                     Text(
-                        text = currentMeal.timeLabel,
+                        text = mealToShow?.timeLabel ?: "",
                         fontSize = 14.sp,
                         color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
                     )
@@ -109,7 +136,6 @@ fun CurrentRecipeScreen(onBack: () -> Unit) {
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Recipe card
             Text(
                 text = "Today's suggestion",
                 fontSize = 13.sp,
@@ -143,24 +169,30 @@ fun CurrentRecipeScreen(onBack: () -> Unit) {
                         color = MaterialTheme.colorScheme.onSurface
                     )
 
-                    // Metadata row
                     val category = recipe!!["category"]?.toString()
                     val calories = recipe!!["calories"]?.toString()
+
                     if (!category.isNullOrEmpty() || !calories.isNullOrEmpty()) {
                         Spacer(modifier = Modifier.height(16.dp))
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             if (!category.isNullOrEmpty()) {
-                                MetaBadge(text = category, color = MaterialTheme.colorScheme.secondaryContainer)
+                                MetaBadge(
+                                    text = category,
+                                    color = MaterialTheme.colorScheme.secondaryContainer
+                                )
                             }
                             if (!calories.isNullOrEmpty()) {
-                                MetaBadge(text = "$calories cal", color = MaterialTheme.colorScheme.tertiaryContainer)
+                                MetaBadge(
+                                    text = "$calories cal",
+                                    color = MaterialTheme.colorScheme.tertiaryContainer
+                                )
                             }
                         }
                     }
                 }
             }
+
         } else {
-            // Empty state
             Box(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
