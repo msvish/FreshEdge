@@ -1,0 +1,19 @@
+# IDE and OS files
+.idea/
+*.iml
+.DS_Store
+/captures
+/build/
+
+# Android Module (Matching your "Andriod" typo)
+Andriod/.gradle/
+Andriod/build/
+Andriod/local.properties
+Andriod/app/google-services.json
+.externalNativeBuild/
+.cxx/
+
+# RAG Module
+freshedge-rag/venv/
+freshedge-rag/serviceaccount.json
+freshedge-rag/chroma_db/
