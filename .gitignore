@@ -5,11 +5,11 @@
 /captures
 /build/
 
-# Android Module (Matching your "Andriod" typo)
-Andriod/.gradle/
-Andriod/build/
-Andriod/local.properties
-Andriod/app/google-services.json
+# Android Module
+Android/.gradle/
+Android/build/
+Android/local.properties
+Android/app/google-services.json
 .externalNativeBuild/
 .cxx/
 
