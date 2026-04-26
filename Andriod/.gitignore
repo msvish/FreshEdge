@@ -13,3 +13,6 @@
 .externalNativeBuild
 .cxx
 local.properties
+freshedge-rag/venv
+freshedge-rag/serviceaccount.json
+freshedge-rag/chroma_db
