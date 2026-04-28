@@ -10,9 +10,9 @@ import chromadb
 from sentence_transformers import SentenceTransformer
 
 # ── Config ────────────────────────────────────────────────────────
-LAPTOP_IP       = "10.0.0.93"
+LAPTOP_IP       = "10.0.0.115"
 OLLAMA_URL      = f"http://{LAPTOP_IP}:11434/api/generate"
-FRIDGE_IMAGE    = "fridge.jpg"          # swap ss1.png → real camera output
+FRIDGE_IMAGE    = "/home/raspberry/fridge.jpg"          # swap ss1.png → real camera output
 SERVICE_ACCOUNT = "serviceaccount.json"
 TOP_K           = 3
 
@@ -30,31 +30,43 @@ print(f"✅ {collection.count()} recipes ready")
 
 # ─────────────────────────────────────────────────────────────────
 def capture_image():
-    # Uncomment on real Pi:
-    # import subprocess
-    # subprocess.run(["libcamera-still", "-o", FRIDGE_IMAGE, "-t", "2000"])
-    print("📸 Using pre-taken fridge image")
-    return FRIDGE_IMAGE
+    """Capture fridge image using Pi Camera."""
+    import subprocess
+    print("📸 Capturing fridge image...")
+    result = subprocess.run(
+        ["rpicam-still", "-o", FRIDGE_IMAGE, "-t", "2000", "--nopreview"],
+        capture_output=True, text=True
+    )
+    if result.returncode == 0:
+        print("✅ Image captured from camera")
+        return FRIDGE_IMAGE
+    else:
+        print(f"⚠️ Camera failed: {result.stderr}")
+        print("📸 Falling back to ss5.png")
+        return "ss5.png"
 
 def analyze_fridge(image_path):
-    """Step 1: Image → Ingredients via LLaVA"""
+    """Send image to LLaVA on laptop, get ingredient list."""
     with open(image_path, "rb") as f:
         image_b64 = base64.b64encode(f.read()).decode("utf-8")
 
-    print(f"🤖 Sending image to LLaVA at {LAPTOP_IP}...")
-    resp = requests.post(OLLAMA_URL, json={
-        "model":  "minicpm-v",
-        "prompt": "List the visible food ingredients in this fridge clearly, separated by commas.",
-        "stream": False,
-        "images": [image_b64]
-    }, timeout=120)
-
-    if resp.status_code == 200:
-        ingredients = resp.json().get("response", "").strip()
-        print(f"🥦 Detected: {ingredients}")
-        return ingredients
-    print(f"❌ LLaVA error: {resp.status_code}")
-    return None
+    try:
+        resp = requests.post(OLLAMA_URL, json={
+            "model":  "minicpm-v",
+            "prompt": "List the visible food ingredients in this fridge clearly, separated by commas.",
+            "stream": False,
+            "images": [image_b64]
+        }, timeout=120)
+        if resp.status_code == 200:
+            ingredients = resp.json().get("response", "").strip()
+            print(f"🥦 Detected: {ingredients}")
+            return ingredients
+        else:
+            print(f"❌ LLaVA error: {resp.status_code}")
+            return None
+    except Exception as e:
+        print(f"❌ Cannot reach Ollama at {LAPTOP_IP}: {e}")
+        return None
 
 def retrieve_recipes(ingredients_text):
     """Step 2: RAG — embed query, find top-k recipes"""
@@ -117,14 +129,15 @@ IMPORTANT:
 - Do NOT invent anything
 """
     print("💭 Generating suggestion with Phi-3...")
-    resp = requests.post(OLLAMA_URL, json={
-        "model":  "phi3",
-        "prompt": prompt,
-        "stream": False
-    }, timeout=180)
 
-    if resp.status_code != 200:
-        print(f"❌ Phi-3 error: {resp.status_code}")
+    try:
+        resp = requests.post(OLLAMA_URL, json={
+            "model":  "phi3:latest",
+            "prompt": prompt,
+            "stream": False
+        }, timeout=180)
+    except Exception as e:
+        print(f"❌ Cannot reach Ollama: {e}")
         return None
 
     raw_output = resp.json().get("response", "").strip()
@@ -238,7 +251,7 @@ def setup_schedule():
     schedule.every().day.at(subtract_one_hour(breakfast)).do(run_pipeline, "Breakfast")
     schedule.every().day.at(subtract_one_hour(lunch)).do(run_pipeline, "Lunch")
     schedule.every().day.at(subtract_one_hour(dinner)).do(run_pipeline, "Dinner")
-    schedule.every(1).hours.do(setup_schedule)
+    schedule.every(5).minutes.do(setup_schedule)
 
 # ── Start ─────────────────────────────────────────────────────────
 setup_schedule()
