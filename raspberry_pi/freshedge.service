@@ -1,0 +1,15 @@
+[Unit]
+Description=FreshEdge Meal Planning Scheduler
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=raspberry
+WorkingDirectory=/home/raspberry/freshedge-rag
+ExecStart=/home/raspberry/freshedge-rag/venv/bin/python3 scheduler.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
